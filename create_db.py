@@ -1,6 +1,6 @@
 import os
 from sqlalchemy import create_engine
-from portfolio_tracker.models import Base, Account
+from portfolio_tracker.models import Base, Account, Transaction
 
 DB_USER = os.getenv("POSTGRES_USER", "user")
 DB_PASSWORD = os.getenv("POSTGRES_PASSWORD", "password")
