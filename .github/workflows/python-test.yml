@@ -1,0 +1,48 @@
+name: Python application test
+
+on:
+  push:
+    branches: [ "main" ] # Assuming 'main' is the primary branch. If it's 'master', adjust.
+  pull_request:
+    branches: [ "main" ] # Assuming 'main' is the primary branch. If it's 'master', adjust.
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11"]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install Poetry
+      run: |
+        pip install poetry
+        poetry config virtualenvs.create false --local 
+        # The command `poetry config virtualenvs.create false --local` 
+        # tells Poetry to install dependencies into the system Python environment, 
+        # which is appropriate for CI environments where the environment is ephemeral.
+        # An alternative is `poetry config virtualenvs.in-project true --local` to create .venv in project.
+
+    - name: Install dependencies
+      run: |
+        poetry install --no-interaction --no-root 
+        # --no-root because we are testing a library/package, not an application with a main script at root.
+        # If it's an application, `poetry install --no-interaction` might be more appropriate.
+        # For this project, given `create_db.py` and `scripts/import_csv.py`, 
+        # it might be treated more like an application. Let's use `poetry install --no-interaction`.
+        # Re-evaluating: `poetry install` by default installs the project itself too.
+        # If the tests import the package `portfolio_tracker`, then `poetry install` is correct.
+        # Let's stick to `poetry install --no-interaction`.
+
+    - name: Test with unittest
+      run: |
+        python -m unittest discover -s tests -p "test_*.py"
