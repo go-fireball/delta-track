@@ -51,7 +51,7 @@ class TestTransactionModel(unittest.TestCase):
         stock_tx = Transaction(
             account_id=self.test_account.id,
             transaction_date=datetime(2023, 1, 15, 10, 30, 0),
-            symbol="AAPL",
+            ticker="AAPL",
             asset_type="STOCK",
             action="BUY",
             quantity=Decimal("10"),
@@ -62,7 +62,7 @@ class TestTransactionModel(unittest.TestCase):
         self.session.add(stock_tx)
         self.session.commit()
 
-        retrieved_tx = self.session.query(Transaction).filter_by(symbol="AAPL", action="BUY").first()
+        retrieved_tx = self.session.query(Transaction).filter_by(ticker="AAPL", action="BUY").first()
         self.assertIsNotNone(retrieved_tx)
         self.assertEqual(retrieved_tx.account_id, self.test_account.id)
         self.assertEqual(retrieved_tx.quantity, Decimal("10"))
@@ -75,7 +75,7 @@ class TestTransactionModel(unittest.TestCase):
         option_tx = Transaction(
             account_id=self.test_account.id,
             transaction_date=datetime(2023, 2, 10, 14, 0, 0),
-            symbol="MSFT",
+            ticker="MSFT",
             asset_type="OPTION",
             action="SELL_TO_OPEN",
             quantity=Decimal("2"), # Number of contracts
@@ -92,7 +92,7 @@ class TestTransactionModel(unittest.TestCase):
         self.session.add(option_tx)
         self.session.commit()
 
-        retrieved_tx = self.session.query(Transaction).filter_by(symbol="MSFT", action="SELL_TO_OPEN").first()
+        retrieved_tx = self.session.query(Transaction).filter_by(ticker="MSFT", action="SELL_TO_OPEN").first()
         self.assertIsNotNone(retrieved_tx)
         self.assertEqual(retrieved_tx.asset_type, "OPTION")
         self.assertEqual(retrieved_tx.option_type, "CALL")
@@ -102,8 +102,8 @@ class TestTransactionModel(unittest.TestCase):
         
     def test_transaction_account_relationship(self):
         # Add a couple of transactions to the test_account
-        tx1 = Transaction(account_id=self.test_account.id, transaction_date=datetime(2023,3,1), symbol="TSLA", asset_type="STOCK", action="BUY", quantity=Decimal("5"), price=Decimal("200"), fees=Decimal("1"), total_amount=Decimal("1001"))
-        tx2 = Transaction(account_id=self.test_account.id, transaction_date=datetime(2023,3,5), symbol="GOOG", asset_type="STOCK", action="SELL", quantity=Decimal("2"), price=Decimal("100"), fees=Decimal("1"), total_amount=Decimal("199"))
+        tx1 = Transaction(account_id=self.test_account.id, transaction_date=datetime(2023,3,1), ticker="TSLA", asset_type="STOCK", action="BUY", quantity=Decimal("5"), price=Decimal("200"), fees=Decimal("1"), total_amount=Decimal("1001"))
+        tx2 = Transaction(account_id=self.test_account.id, transaction_date=datetime(2023,3,5), ticker="GOOG", asset_type="STOCK", action="SELL", quantity=Decimal("2"), price=Decimal("100"), fees=Decimal("1"), total_amount=Decimal("199"))
         self.session.add_all([tx1, tx2])
         self.session.commit()
 

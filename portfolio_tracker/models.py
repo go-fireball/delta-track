@@ -22,7 +22,7 @@ class Transaction(Base):
     id = Column(Integer, primary_key=True, index=True)
     account_id = Column(Integer, ForeignKey('accounts.id'), nullable=False)
     transaction_date = Column(DateTime, nullable=False)
-    symbol = Column(String, nullable=False, index=True)
+    ticker = Column(String, nullable=False, index=True)
     asset_type = Column(String, nullable=False)  # E.g., 'STOCK', 'OPTION', 'ETF', 'MUTUAL_FUND'
     action = Column(String, nullable=False)  # E.g., 'BUY', 'SELL', 'SELL_TO_OPEN', 'BUY_TO_OPEN'
     quantity = Column(Numeric(19, 4), nullable=False)
@@ -39,4 +39,4 @@ class Transaction(Base):
     account = relationship("Account", back_populates="transactions")
 
     def __repr__(self):
-        return f"<Transaction(id={self.id}, symbol='{self.symbol}', action='{self.action}', quantity={self.quantity}, price={self.price})>"
+        return f"<Transaction(id={self.id}, ticker='{self.ticker}', action='{self.action}', quantity={self.quantity}, price={self.price})>"
