@@ -1,5 +1,7 @@
 import enum
-from sqlalchemy import Column, Integer, String, DateTime, Numeric, Text, ForeignKey, Date, Enum as DBEnum
+from datetime import date # Added for Index
+from decimal import Decimal # Added for Index, though already present via InvalidOperation
+from sqlalchemy import Column, Integer, String, DateTime, Numeric, Text, ForeignKey, Date, Enum as DBEnum, Index, func # Added Index, func
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.schema import UniqueConstraint
 
@@ -93,16 +95,25 @@ class DailyPositionSnapshot(Base):
 
     # Unique constraint: one entry per asset per account per day
     # For options, the combination of ticker, option_type, strike_price, and expiry_date defines the specific contract
-    __table_args__ = (
-        UniqueConstraint('account_id', 'snapshot_date', 'ticker', 'asset_type', 
-                         'option_type', 'strike_price', 'expiry_date', 
-                         name='uq_position_snapshot'),
-    )
+    # __table_args__ = (
+    #     UniqueConstraint('account_id', 'snapshot_date', 'ticker', 
+    #                      name='uq_position_snapshot_simplified'),
+    # )
 
     def __repr__(self):
         return (f"<DailyPositionSnapshot(date='{self.snapshot_date}', ticker='{self.ticker}', "
                 f"asset_type='{self.asset_type.value if self.asset_type else None}', quantity={self.quantity}, " # Access .value for Enum
                 f"market_value={self.market_value})>")
+
+Index('uq_daily_snapshot_idx', 
+      DailyPositionSnapshot.account_id, 
+      DailyPositionSnapshot.snapshot_date,
+      DailyPositionSnapshot.ticker,
+      DailyPositionSnapshot.asset_type,
+      func.coalesce(DailyPositionSnapshot.option_type, ''), 
+      func.coalesce(DailyPositionSnapshot.strike_price, Decimal('0.0')), 
+      func.coalesce(DailyPositionSnapshot.expiry_date, date(1900, 1, 1)),
+      unique=True)
 
 class LivePosition(Base):
     __tablename__ = "live_positions" # This is for the live view of current holdings
@@ -127,13 +138,22 @@ class LivePosition(Base):
     account = relationship("Account", back_populates="live_positions")
 
     # Unique constraint: one entry per unique currently held asset per account
-    __table_args__ = (
-        UniqueConstraint('account_id', 'ticker', 'asset_type', 
-                         'option_type', 'strike_price', 'expiry_date', 
-                         name='uq_live_position'),
-    )
+    # __table_args__ = (
+    #     UniqueConstraint('account_id', 'ticker', 'asset_type', 
+    #                      'option_type', 'strike_price', 'expiry_date', 
+    #                      name='uq_live_position'),
+    # )
 
     def __repr__(self):
         return (f"<LivePosition(ticker='{self.ticker}', "
                 f"asset_type='{self.asset_type.value if self.asset_type else None}', quantity={self.quantity}, "
                 f"avg_cost_basis={self.avg_cost_basis})>")
+
+Index('uq_live_pos_idx', 
+      LivePosition.account_id, 
+      LivePosition.ticker,
+      LivePosition.asset_type,
+      func.coalesce(LivePosition.option_type, ''), 
+      func.coalesce(LivePosition.strike_price, Decimal('0.0')), 
+      func.coalesce(LivePosition.expiry_date, date(1900, 1, 1)),
+      unique=True)

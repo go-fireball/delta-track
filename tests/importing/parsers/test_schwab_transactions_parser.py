@@ -10,14 +10,15 @@ from portfolio_tracker.importing.parsers.schwab_transactions_parser import parse
 class TestSchwabTransactionsParser(unittest.TestCase):
 
     def test_parse_schwab_transactions_valid_data(self):
-        sample_csv_content = """Date,Action,Symbol,Description,Quantity,Price,Fees & Comm,Amount
-5/19/2025,Buy,NVDA,NVIDIA CORP,100,$135.50,,($13,550.00)
-5/15/2025,Sell to Open,MSFT 12/18/2026 400.00 P,"PUT MICROSOFT CORP $400 EXP 12/18/26",3,$27.18,$1.98,$8,152.02
-5/15/2025,Qualified Dividend,AAPL,APPLE INC,,,,"$1.13"
-5/14/2025,Buy to Close,NVDA 01/15/2027 70.00 P,"PUT NVIDIA CORP $70 EXP 01/15/27",1,$4.11,$0.66,($411.66)
-01/01/2024,MoneyLink Transfer,,,Outgoing Transfer,,,,($1000.00)
-02/01/2024,Service Fee,,SERVICE CHARGE,,,($5.00)
-"""
+        sample_csv_content = (
+            "Date,Action,Symbol,Description,Quantity,Price,Fees & Comm,Amount\n"
+            "5/19/2025,Buy,NVDA,NVIDIA CORP,100,$135.50,,\"($13,550.00)\"\n"
+            "5/15/2025,Sell to Open,MSFT 12/18/2026 400.00 P,\"PUT MICROSOFT CORP $400 EXP 12/18/26\",3,$27.18,$1.98,\"$8,152.02\"\n"
+            "5/15/2025,Qualified Dividend,AAPL,APPLE INC,,,,\"$1.13\"\n"
+            "5/14/2025,Buy to Close,NVDA 01/15/2027 70.00 P,\"PUT NVIDIA CORP $70 EXP 01/15/27\",1,$4.11,$0.66,($411.66)\n"
+            "01/01/2024,MoneyLink Transfer,,,Outgoing Transfer,,,,($1000.00)\n"
+            "02/01/2024,Service Fee,,SERVICE CHARGE,,,($5.00)\n"
+        )
         with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix=".csv", newline='') as tmp_csv_file:
             tmp_csv_file.write(sample_csv_content)
             tmp_csv_file.flush()
