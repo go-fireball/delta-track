@@ -118,6 +118,8 @@ class Position(Base):
     option_type = Column(String, nullable=True)  # 'CALL' or 'PUT'
     strike_price = Column(Numeric(19, 4), nullable=True)
     expiry_date = Column(Date, nullable=True)
+
+    avg_cost_basis = Column(Numeric(19, 4), nullable=True) # Average cost per unit
     
     # No snapshot_date or market_value fields in this live position table
 
@@ -133,4 +135,5 @@ class Position(Base):
 
     def __repr__(self):
         return (f"<Position(ticker='{self.ticker}', "
-                f"asset_type='{self.asset_type.value if self.asset_type else None}', quantity={self.quantity})>")
+                f"asset_type='{self.asset_type.value if self.asset_type else None}', quantity={self.quantity}, "
+                f"avg_cost_basis={self.avg_cost_basis})>")

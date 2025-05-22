@@ -262,7 +262,8 @@ class TestLivePositionModel(unittest.TestCase):
             account_id=self.test_account.id,
             ticker="NVDA",
             asset_type=AssetTypeEnum.STOCK,
-            quantity=Decimal("50")
+            quantity=Decimal("50"),
+            avg_cost_basis=Decimal("45.50") # New field
         )
         self.session.add(live_stock_pos)
         self.session.commit()
@@ -271,6 +272,7 @@ class TestLivePositionModel(unittest.TestCase):
         self.assertIsNotNone(retrieved_pos)
         self.assertEqual(retrieved_pos.asset_type, AssetTypeEnum.STOCK)
         self.assertEqual(retrieved_pos.quantity, Decimal("50"))
+        self.assertEqual(retrieved_pos.avg_cost_basis, Decimal("45.50"))
         self.assertIsNone(retrieved_pos.strike_price) # Ensure option fields are None
 
     def test_create_live_option_position(self):
@@ -281,7 +283,8 @@ class TestLivePositionModel(unittest.TestCase):
             quantity=Decimal("5"), # Number of contracts
             option_type="PUT",
             strike_price=Decimal("150.00"),
-            expiry_date=date(2024, 6, 21)
+            expiry_date=date(2024, 6, 21),
+            avg_cost_basis=Decimal("2.10") # New field (e.g. cost per contract)
         )
         self.session.add(live_option_pos)
         self.session.commit()
@@ -292,15 +295,16 @@ class TestLivePositionModel(unittest.TestCase):
         self.assertEqual(retrieved_pos.quantity, Decimal("5"))
         self.assertEqual(retrieved_pos.strike_price, Decimal("150.00"))
         self.assertEqual(retrieved_pos.expiry_date, date(2024, 6, 21))
+        self.assertEqual(retrieved_pos.avg_cost_basis, Decimal("2.10"))
 
     def test_unique_constraint_live_position(self):
         # Initial live stock position
-        pos1 = Position(account_id=self.test_account.id, ticker="INTC", asset_type=AssetTypeEnum.STOCK, quantity=Decimal("200"))
+        pos1 = Position(account_id=self.test_account.id, ticker="INTC", asset_type=AssetTypeEnum.STOCK, quantity=Decimal("200"), avg_cost_basis=Decimal("40.00"))
         self.session.add(pos1)
         self.session.commit()
 
         # Identical live stock position (should fail)
-        pos2_stock_dup = Position(account_id=self.test_account.id, ticker="INTC", asset_type=AssetTypeEnum.STOCK, quantity=Decimal("25"))
+        pos2_stock_dup = Position(account_id=self.test_account.id, ticker="INTC", asset_type=AssetTypeEnum.STOCK, quantity=Decimal("25"), avg_cost_basis=Decimal("40.10"))
         self.session.add(pos2_stock_dup)
         from sqlalchemy.exc import IntegrityError
         with self.assertRaises(IntegrityError):
@@ -310,7 +314,7 @@ class TestLivePositionModel(unittest.TestCase):
         # Initial live option position
         pos_opt1 = Position(
             account_id=self.test_account.id, ticker="SPY", asset_type=AssetTypeEnum.OPTION,
-            quantity=Decimal("10"), option_type="CALL", strike_price=Decimal("500"), expiry_date=date(2024,12,20)
+            quantity=Decimal("10"), option_type="CALL", strike_price=Decimal("500"), expiry_date=date(2024,12,20), avg_cost_basis=Decimal("10.00")
         )
         self.session.add(pos_opt1)
         self.session.commit()
@@ -318,7 +322,7 @@ class TestLivePositionModel(unittest.TestCase):
         # Identical live option position (should fail)
         pos_opt2_dup = Position(
             account_id=self.test_account.id, ticker="SPY", asset_type=AssetTypeEnum.OPTION,
-            quantity=Decimal("12"), option_type="CALL", strike_price=Decimal("500"), expiry_date=date(2024,12,20)
+            quantity=Decimal("12"), option_type="CALL", strike_price=Decimal("500"), expiry_date=date(2024,12,20), avg_cost_basis=Decimal("10.50")
         )
         self.session.add(pos_opt2_dup)
         with self.assertRaises(IntegrityError):
@@ -328,7 +332,7 @@ class TestLivePositionModel(unittest.TestCase):
         # Live option position, different strike (should succeed)
         pos_opt3_diff = Position(
             account_id=self.test_account.id, ticker="SPY", asset_type=AssetTypeEnum.OPTION,
-            quantity=Decimal("15"), option_type="CALL", strike_price=Decimal("505"), expiry_date=date(2024,12,20)
+            quantity=Decimal("15"), option_type="CALL", strike_price=Decimal("505"), expiry_date=date(2024,12,20), avg_cost_basis=Decimal("8.00")
         )
         self.session.add(pos_opt3_diff)
         self.session.commit()
