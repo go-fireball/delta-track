@@ -1,7 +1,7 @@
 import unittest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from portfolio_tracker.models import Base, Account, Transaction, AssetTypeEnum, ActionTypeEnum, PositionSnapshot, Position
+from portfolio_tracker.models import Base, Account, Transaction, AssetTypeEnum, ActionTypeEnum, DailyPositionSnapshot, LivePosition
 from datetime import datetime, date
 from decimal import Decimal
 
@@ -120,7 +120,7 @@ class TestTransactionModel(unittest.TestCase):
 if __name__ == '__main__':
     unittest.main()
 
-class TestPositionSnapshotModel(unittest.TestCase):
+class TestDailyPositionSnapshotModel(unittest.TestCase):
     def setUp(self):
         self.engine = create_engine("sqlite:///:memory:")
         Base.metadata.create_all(self.engine)
@@ -137,7 +137,7 @@ class TestPositionSnapshotModel(unittest.TestCase):
         Base.metadata.drop_all(self.engine)
 
     def test_create_stock_position(self):
-        stock_pos = PositionSnapshot(
+        stock_pos = DailyPositionSnapshot(
             account_id=self.test_account.id,
             snapshot_date=date(2023, 12, 31),
             ticker="AAPL",
@@ -149,7 +149,7 @@ class TestPositionSnapshotModel(unittest.TestCase):
         self.session.add(stock_pos)
         self.session.commit()
 
-        retrieved_pos = self.session.query(PositionSnapshot).filter_by(ticker="AAPL", snapshot_date=date(2023,12,31)).first()
+        retrieved_pos = self.session.query(DailyPositionSnapshot).filter_by(ticker="AAPL", snapshot_date=date(2023,12,31)).first()
         self.assertIsNotNone(retrieved_pos)
         self.assertEqual(retrieved_pos.account_id, self.test_account.id)
         self.assertEqual(retrieved_pos.asset_type, AssetTypeEnum.STOCK)
@@ -158,7 +158,7 @@ class TestPositionSnapshotModel(unittest.TestCase):
         self.assertEqual(retrieved_pos.market_value, Decimal("17050.00"))
 
     def test_create_option_position(self):
-        option_pos = PositionSnapshot(
+        option_pos = DailyPositionSnapshot(
             account_id=self.test_account.id,
             snapshot_date=date(2023, 12, 31),
             ticker="MSFT", # Underlying ticker
@@ -173,7 +173,7 @@ class TestPositionSnapshotModel(unittest.TestCase):
         self.session.add(option_pos)
         self.session.commit()
 
-        retrieved_pos = self.session.query(PositionSnapshot).filter_by(ticker="MSFT", option_type="CALL", snapshot_date=date(2023,12,31)).first()
+        retrieved_pos = self.session.query(DailyPositionSnapshot).filter_by(ticker="MSFT", option_type="CALL", snapshot_date=date(2023,12,31)).first()
         self.assertIsNotNone(retrieved_pos)
         self.assertEqual(retrieved_pos.asset_type, AssetTypeEnum.OPTION)
         self.assertEqual(retrieved_pos.quantity, Decimal("2"))
@@ -184,7 +184,7 @@ class TestPositionSnapshotModel(unittest.TestCase):
 
     def test_unique_constraint_position(self):
         # Create an initial position
-        pos1 = PositionSnapshot(
+        pos1 = DailyPositionSnapshot(
             account_id=self.test_account.id, snapshot_date=date(2024, 1, 1),
             ticker="GOOG", asset_type=AssetTypeEnum.STOCK, quantity=Decimal("10"),
             market_price=Decimal("140"), market_value=Decimal("1400")
@@ -195,7 +195,7 @@ class TestPositionSnapshotModel(unittest.TestCase):
         # Attempt to create an identical position (should fail due to unique constraint)
         # For stock positions, option_type, strike_price, expiry_date are None.
         # The unique constraint uq_position_snapshot includes these nullable fields.
-        pos2 = PositionSnapshot(
+        pos2 = DailyPositionSnapshot(
             account_id=self.test_account.id, snapshot_date=date(2024, 1, 1),
             ticker="GOOG", asset_type=AssetTypeEnum.STOCK, quantity=Decimal("20"), # Different quantity
             market_price=Decimal("141"), market_value=Decimal("2820")
@@ -210,7 +210,7 @@ class TestPositionSnapshotModel(unittest.TestCase):
         self.session.delete(pos1)
         self.session.commit()
 
-        option_pos1 = PositionSnapshot(
+        option_pos1 = DailyPositionSnapshot(
             account_id=self.test_account.id, snapshot_date=date(2024,1,1), ticker="GOOG",
             asset_type=AssetTypeEnum.OPTION, quantity=Decimal("1"), option_type="CALL",
             strike_price=Decimal("150"), expiry_date=date(2024,2,16),
@@ -220,7 +220,7 @@ class TestPositionSnapshotModel(unittest.TestCase):
         self.session.commit()
        
         # Attempt to create an identical option position (should fail)
-        option_pos1_duplicate = PositionSnapshot(
+        option_pos1_duplicate = DailyPositionSnapshot(
             account_id=self.test_account.id, snapshot_date=date(2024,1,1), ticker="GOOG",
             asset_type=AssetTypeEnum.OPTION, quantity=Decimal("2"), option_type="CALL", # Diff quantity
             strike_price=Decimal("150"), expiry_date=date(2024,2,16),
@@ -232,7 +232,7 @@ class TestPositionSnapshotModel(unittest.TestCase):
         self.session.rollback()
 
         # Attempt to create an option position for the same underlying but different strike (should succeed)
-        option_pos2_different_strike = PositionSnapshot(
+        option_pos2_different_strike = DailyPositionSnapshot(
             account_id=self.test_account.id, snapshot_date=date(2024,1,1), ticker="GOOG",
             asset_type=AssetTypeEnum.OPTION, quantity=Decimal("1"), option_type="CALL",
             strike_price=Decimal("155"), expiry_date=date(2024,2,16), # Different strike
@@ -240,7 +240,7 @@ class TestPositionSnapshotModel(unittest.TestCase):
         )
         self.session.add(option_pos2_different_strike)
         self.session.commit() 
-        self.assertIsNotNone(self.session.query(PositionSnapshot).filter_by(strike_price=Decimal("155")).first())
+        self.assertIsNotNone(self.session.query(DailyPositionSnapshot).filter_by(strike_price=Decimal("155")).first())
 
 class TestLivePositionModel(unittest.TestCase):
     def setUp(self):
@@ -258,7 +258,7 @@ class TestLivePositionModel(unittest.TestCase):
         Base.metadata.drop_all(self.engine)
 
     def test_create_live_stock_position(self):
-        live_stock_pos = Position( # This is the new Position model
+        live_stock_pos = LivePosition( # This is the new Position model
             account_id=self.test_account.id,
             ticker="NVDA",
             asset_type=AssetTypeEnum.STOCK,
@@ -268,7 +268,7 @@ class TestLivePositionModel(unittest.TestCase):
         self.session.add(live_stock_pos)
         self.session.commit()
 
-        retrieved_pos = self.session.query(Position).filter_by(ticker="NVDA", account_id=self.test_account.id).first()
+        retrieved_pos = self.session.query(LivePosition).filter_by(ticker="NVDA", account_id=self.test_account.id).first()
         self.assertIsNotNone(retrieved_pos)
         self.assertEqual(retrieved_pos.asset_type, AssetTypeEnum.STOCK)
         self.assertEqual(retrieved_pos.quantity, Decimal("50"))
@@ -276,7 +276,7 @@ class TestLivePositionModel(unittest.TestCase):
         self.assertIsNone(retrieved_pos.strike_price) # Ensure option fields are None
 
     def test_create_live_option_position(self):
-        live_option_pos = Position(
+        live_option_pos = LivePosition(
             account_id=self.test_account.id,
             ticker="AMD", 
             asset_type=AssetTypeEnum.OPTION,
@@ -289,7 +289,7 @@ class TestLivePositionModel(unittest.TestCase):
         self.session.add(live_option_pos)
         self.session.commit()
 
-        retrieved_pos = self.session.query(Position).filter_by(ticker="AMD", option_type="PUT", account_id=self.test_account.id).first()
+        retrieved_pos = self.session.query(LivePosition).filter_by(ticker="AMD", option_type="PUT", account_id=self.test_account.id).first()
         self.assertIsNotNone(retrieved_pos)
         self.assertEqual(retrieved_pos.asset_type, AssetTypeEnum.OPTION)
         self.assertEqual(retrieved_pos.quantity, Decimal("5"))
@@ -299,12 +299,12 @@ class TestLivePositionModel(unittest.TestCase):
 
     def test_unique_constraint_live_position(self):
         # Initial live stock position
-        pos1 = Position(account_id=self.test_account.id, ticker="INTC", asset_type=AssetTypeEnum.STOCK, quantity=Decimal("200"), avg_cost_basis=Decimal("40.00"))
+        pos1 = LivePosition(account_id=self.test_account.id, ticker="INTC", asset_type=AssetTypeEnum.STOCK, quantity=Decimal("200"), avg_cost_basis=Decimal("40.00"))
         self.session.add(pos1)
         self.session.commit()
 
         # Identical live stock position (should fail)
-        pos2_stock_dup = Position(account_id=self.test_account.id, ticker="INTC", asset_type=AssetTypeEnum.STOCK, quantity=Decimal("25"), avg_cost_basis=Decimal("40.10"))
+        pos2_stock_dup = LivePosition(account_id=self.test_account.id, ticker="INTC", asset_type=AssetTypeEnum.STOCK, quantity=Decimal("25"), avg_cost_basis=Decimal("40.10"))
         self.session.add(pos2_stock_dup)
         from sqlalchemy.exc import IntegrityError
         with self.assertRaises(IntegrityError):
@@ -312,7 +312,7 @@ class TestLivePositionModel(unittest.TestCase):
         self.session.rollback()
 
         # Initial live option position
-        pos_opt1 = Position(
+        pos_opt1 = LivePosition(
             account_id=self.test_account.id, ticker="SPY", asset_type=AssetTypeEnum.OPTION,
             quantity=Decimal("10"), option_type="CALL", strike_price=Decimal("500"), expiry_date=date(2024,12,20), avg_cost_basis=Decimal("10.00")
         )
@@ -320,7 +320,7 @@ class TestLivePositionModel(unittest.TestCase):
         self.session.commit()
         
         # Identical live option position (should fail)
-        pos_opt2_dup = Position(
+        pos_opt2_dup = LivePosition(
             account_id=self.test_account.id, ticker="SPY", asset_type=AssetTypeEnum.OPTION,
             quantity=Decimal("12"), option_type="CALL", strike_price=Decimal("500"), expiry_date=date(2024,12,20), avg_cost_basis=Decimal("10.50")
         )
@@ -330,10 +330,10 @@ class TestLivePositionModel(unittest.TestCase):
         self.session.rollback()
 
         # Live option position, different strike (should succeed)
-        pos_opt3_diff = Position(
+        pos_opt3_diff = LivePosition(
             account_id=self.test_account.id, ticker="SPY", asset_type=AssetTypeEnum.OPTION,
             quantity=Decimal("15"), option_type="CALL", strike_price=Decimal("505"), expiry_date=date(2024,12,20), avg_cost_basis=Decimal("8.00")
         )
         self.session.add(pos_opt3_diff)
         self.session.commit()
-        self.assertIsNotNone(self.session.query(Position).filter_by(strike_price=Decimal("505")).first())
+        self.assertIsNotNone(self.session.query(LivePosition).filter_by(strike_price=Decimal("505")).first())

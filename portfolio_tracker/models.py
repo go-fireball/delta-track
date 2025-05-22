@@ -36,8 +36,8 @@ class Account(Base):
     broker_name = Column(String)
 
     transactions = relationship("Transaction", back_populates="account", order_by="Transaction.transaction_date", cascade="all, delete-orphan")
-    position_snapshots = relationship("PositionSnapshot", back_populates="account", order_by="PositionSnapshot.snapshot_date", cascade="all, delete-orphan")
-    live_positions = relationship("Position", back_populates="account", cascade="all, delete-orphan")
+    daily_position_snapshots = relationship("DailyPositionSnapshot", back_populates="account", order_by="DailyPositionSnapshot.snapshot_date", cascade="all, delete-orphan")
+    live_positions = relationship("LivePosition", back_populates="account", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Account(user_friendly_name='{self.user_friendly_name}', account_number='{self.account_number}')>"
@@ -67,8 +67,8 @@ class Transaction(Base):
     def __repr__(self):
         return f"<Transaction(id={self.id}, ticker='{self.ticker}', action='{self.action.value if self.action else None}', quantity={self.quantity}, price={self.price})>"
 
-class PositionSnapshot(Base):
-    __tablename__ = "position_snapshots"
+class DailyPositionSnapshot(Base):
+    __tablename__ = "daily_position_snapshots"
 
     id = Column(Integer, primary_key=True, index=True)
     account_id = Column(Integer, ForeignKey('accounts.id'), nullable=False)
@@ -89,7 +89,7 @@ class PositionSnapshot(Base):
     market_value = Column(Numeric(19, 2), nullable=True) # Total value of this position on snapshot_date
 
     # Relationship (will be completed on Account model later)
-    account = relationship("Account", back_populates="position_snapshots")
+    account = relationship("Account", back_populates="daily_position_snapshots")
 
     # Unique constraint: one entry per asset per account per day
     # For options, the combination of ticker, option_type, strike_price, and expiry_date defines the specific contract
@@ -100,12 +100,12 @@ class PositionSnapshot(Base):
     )
 
     def __repr__(self):
-        return (f"<PositionSnapshot(date='{self.snapshot_date}', ticker='{self.ticker}', "
+        return (f"<DailyPositionSnapshot(date='{self.snapshot_date}', ticker='{self.ticker}', "
                 f"asset_type='{self.asset_type.value if self.asset_type else None}', quantity={self.quantity}, " # Access .value for Enum
                 f"market_value={self.market_value})>")
 
-class Position(Base):
-    __tablename__ = "positions" # This is for the live view of current holdings
+class LivePosition(Base):
+    __tablename__ = "live_positions" # This is for the live view of current holdings
 
     id = Column(Integer, primary_key=True, index=True)
     account_id = Column(Integer, ForeignKey('accounts.id'), nullable=False)
@@ -134,6 +134,6 @@ class Position(Base):
     )
 
     def __repr__(self):
-        return (f"<Position(ticker='{self.ticker}', "
+        return (f"<LivePosition(ticker='{self.ticker}', "
                 f"asset_type='{self.asset_type.value if self.asset_type else None}', quantity={self.quantity}, "
                 f"avg_cost_basis={self.avg_cost_basis})>")
