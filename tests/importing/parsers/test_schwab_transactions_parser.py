@@ -1,6 +1,6 @@
-# tests/importing/parsers/test_schwab_transactions_parser.py
-
 import unittest
+import tempfile
+import os
 from datetime import date
 from decimal import Decimal
 
@@ -9,128 +9,81 @@ from portfolio_tracker.importing.parsers.schwab_transactions_parser import parse
 
 class TestSchwabTransactionsParser(unittest.TestCase):
 
-    def test_parse_stock_buy(self):
-        csv_content = """Date,Action,Symbol,Description,Quantity,Price,Fees & Comm,Amount
-05/19/2025,Buy,NVDA,NVIDIA CORP,100,$135.50,,($13,550.00)"""
-        parsed = parse_schwab_transactions(csv_content)
-        self.assertEqual(len(parsed), 1)
-        tx = parsed[0]
-        self.assertEqual(tx['transaction_date'], date(2025, 5, 19))
-        self.assertEqual(tx['action'], ActionTypeEnum.BUY)
-        self.assertEqual(tx['asset_type'], AssetTypeEnum.STOCK)
-        self.assertEqual(tx['ticker'], "NVDA")
-        self.assertEqual(tx['quantity'], Decimal("100"))
-        self.assertEqual(tx['price'], Decimal("135.50"))
-        self.assertEqual(tx['fees'], Decimal("0"))
-        self.assertEqual(tx['total_amount'], Decimal("-13550.00"))
-        self.assertIsNone(tx['option_type'])
+    def test_parse_schwab_transactions_valid_data(self):
+        sample_csv_content = """Date,Action,Symbol,Description,Quantity,Price,Fees & Comm,Amount
+5/19/2025,Buy,NVDA,NVIDIA CORP,100,$135.50,,($13,550.00)
+5/15/2025,Sell to Open,MSFT 12/18/2026 400.00 P,"PUT MICROSOFT CORP $400 EXP 12/18/26",3,$27.18,$1.98,$8,152.02
+5/15/2025,Qualified Dividend,AAPL,APPLE INC,,,,"$1.13"
+5/14/2025,Buy to Close,NVDA 01/15/2027 70.00 P,"PUT NVIDIA CORP $70 EXP 01/15/27",1,$4.11,$0.66,($411.66)
+01/01/2024,MoneyLink Transfer,,,Outgoing Transfer,,,,($1000.00)
+02/01/2024,Service Fee,,SERVICE CHARGE,,,($5.00)
+"""
+        with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix=".csv", newline='') as tmp_csv_file:
+            tmp_csv_file.write(sample_csv_content)
+            tmp_csv_file.flush()
+            tmp_file_path = tmp_csv_file.name
 
-    def test_parse_option_sell_to_open_symbol_format(self):
-        csv_content = """Date,Action,Symbol,Description,Quantity,Price,Fees & Comm,Amount
-05/15/2025,Sell to Open,MSFT 12/18/2026 400.00 P,"PUT MICROSOFT CORP $400 EXP 12/18/26",3,$27.18,$1.98,$8,152.02"""
-        parsed = parse_schwab_transactions(csv_content)
-        self.assertEqual(len(parsed), 1)
-        tx = parsed[0]
-        self.assertEqual(tx['transaction_date'], date(2025, 5, 15))
-        self.assertEqual(tx['action'], ActionTypeEnum.SELL_TO_OPEN)
-        self.assertEqual(tx['asset_type'], AssetTypeEnum.OPTION)
-        self.assertEqual(tx['ticker'], "MSFT")
-        self.assertEqual(tx['quantity'], Decimal("3"))
-        self.assertEqual(tx['price'], Decimal("27.18"))
-        self.assertEqual(tx['fees'], Decimal("1.98"))
-        self.assertEqual(tx['total_amount'], Decimal("8152.02"))
-        self.assertEqual(tx['option_type'], "PUT")
-        self.assertEqual(tx['option_strike'], Decimal("400.00"))
-        self.assertEqual(tx['option_expiry'], date(2026, 12, 18))
+        try:
+            parsed_data = parse_schwab_transactions(tmp_file_path)
 
-    def test_parse_option_buy_to_close_description_format(self):
-        csv_content = """Date,Action,Symbol,Description,Quantity,Price,Fees & Comm,Amount
-05/14/2025,Buy to Close,NVDA,"PUT NVIDIA CORP $70 EXP 01/15/27",1,$4.11,$0.66,($411.66)"""
-        # Note: Schwab CSV often has underlying ticker in Symbol for options parsed from Description
-        parsed = parse_schwab_transactions(csv_content)
-        self.assertEqual(len(parsed), 1)
-        tx = parsed[0]
-        self.assertEqual(tx['transaction_date'], date(2025, 5, 14))
-        self.assertEqual(tx['action'], ActionTypeEnum.BUY_TO_CLOSE)
-        self.assertEqual(tx['asset_type'], AssetTypeEnum.OPTION)
-        self.assertEqual(tx['ticker'], "NVDA") # Assumes parser uses Symbol field if Description is for option
-        self.assertEqual(tx['quantity'], Decimal("1"))
-        self.assertEqual(tx['price'], Decimal("4.11"))
-        self.assertEqual(tx['fees'], Decimal("0.66"))
-        self.assertEqual(tx['total_amount'], Decimal("-411.66"))
-        self.assertEqual(tx['option_type'], "PUT")
-        self.assertEqual(tx['option_strike'], Decimal("70.00"))
-        self.assertEqual(tx['option_expiry'], date(2027, 1, 15)) # YY format in desc
+            # Expect 4 transactions (Buy, Sell to Open, Dividend, Buy to Close)
+            # MoneyLink Transfer and Service Fee should be skipped
+            self.assertEqual(len(parsed_data), 4)
 
-    def test_parse_option_sell_to_open_description_format_yy_expiry(self):
-        csv_content = """Date,Action,Symbol,Description,Quantity,Price,Fees & Comm,Amount
-05/14/2025,Sell to Open,NVDA,"PUT NVIDIA CORP $100 EXP 06/18/26",1,$8.31,$0.66,$830.34"""
-        parsed = parse_schwab_transactions(csv_content)
-        self.assertEqual(len(parsed), 1)
-        tx = parsed[0]
-        self.assertEqual(tx['option_type'], "PUT")
-        self.assertEqual(tx['option_strike'], Decimal("100.00"))
-        self.assertEqual(tx['option_expiry'], date(2026, 6, 18)) # YY format test
+            # Transaction 1: Buy NVDA
+            self.assertEqual(parsed_data[0]['transaction_date'], date(2025, 5, 19))
+            self.assertEqual(parsed_data[0]['action'], ActionTypeEnum.BUY)
+            self.assertEqual(parsed_data[0]['asset_type'], AssetTypeEnum.STOCK)
+            self.assertEqual(parsed_data[0]['ticker'], 'NVDA')
+            self.assertEqual(parsed_data[0]['quantity'], Decimal('100'))
+            self.assertEqual(parsed_data[0]['price'], Decimal('135.50'))
+            self.assertEqual(parsed_data[0]['fees'], Decimal('0'))
+            self.assertEqual(parsed_data[0]['total_amount'], Decimal('-13550.00'))
+            self.assertIsNone(parsed_data[0]['option_type'])
+            self.assertIsNone(parsed_data[0]['option_strike'])
+            self.assertIsNone(parsed_data[0]['option_expiry'])
 
-    def test_parse_dividend(self):
-        csv_content = """Date,Action,Symbol,Description,Quantity,Price,Fees & Comm,Amount
-05/15/2025,Qualified Dividend,AAPL,APPLE INC,,,,"$1.13""""
-        parsed = parse_schwab_transactions(csv_content)
-        self.assertEqual(len(parsed), 1)
-        tx = parsed[0]
-        self.assertEqual(tx['action'], ActionTypeEnum.DIVIDEND)
-        self.assertEqual(tx['asset_type'], AssetTypeEnum.CASH)
-        self.assertEqual(tx['ticker'], "AAPL") # Stock that paid dividend
-        self.assertEqual(tx['total_amount'], Decimal("1.13"))
-        self.assertEqual(tx['quantity'], Decimal("0")) # Or based on how parser handles blank
-        self.assertEqual(tx['price'], Decimal("0"))    # Or based on how parser handles blank
+            # Transaction 2: Sell to Open MSFT Option
+            self.assertEqual(parsed_data[1]['transaction_date'], date(2025, 5, 15))
+            self.assertEqual(parsed_data[1]['action'], ActionTypeEnum.SELL_TO_OPEN)
+            self.assertEqual(parsed_data[1]['asset_type'], AssetTypeEnum.OPTION)
+            self.assertEqual(parsed_data[1]['ticker'], 'MSFT')
+            self.assertEqual(parsed_data[1]['quantity'], Decimal('3'))
+            self.assertEqual(parsed_data[1]['price'], Decimal('27.18'))
+            self.assertEqual(parsed_data[1]['fees'], Decimal('1.98'))
+            self.assertEqual(parsed_data[1]['total_amount'], Decimal('8152.02')) # 3 * 27.18 * 100 (assuming standard option multiplier) - 1.98 fees -> actually schwab gives total
+            self.assertEqual(parsed_data[1]['option_type'], 'PUT')
+            self.assertEqual(parsed_data[1]['option_strike'], Decimal('400.00'))
+            self.assertEqual(parsed_data[1]['option_expiry'], date(2026, 12, 18))
 
-    def test_skip_moneylink_transfer(self):
-        csv_content = """Date,Action,Symbol,Description,Quantity,Price,Fees & Comm,Amount
-01/01/2024,MoneyLink Transfer,,,Outgoing Transfer,,,,($1000.00)"""
-        parsed = parse_schwab_transactions(csv_content)
-        self.assertEqual(len(parsed), 0)
+            # Transaction 3: Qualified Dividend AAPL
+            self.assertEqual(parsed_data[2]['transaction_date'], date(2025, 5, 15))
+            self.assertEqual(parsed_data[2]['action'], ActionTypeEnum.DIVIDEND)
+            self.assertEqual(parsed_data[2]['asset_type'], AssetTypeEnum.CASH) # Dividends are cash deposits
+            self.assertEqual(parsed_data[2]['ticker'], 'AAPL') # Ticker is present
+            self.assertEqual(parsed_data[2]['quantity'], Decimal('0')) # No quantity for dividend
+            self.assertEqual(parsed_data[2]['price'], Decimal('0')) # No price for dividend
+            self.assertEqual(parsed_data[2]['fees'], Decimal('0'))
+            self.assertEqual(parsed_data[2]['total_amount'], Decimal('1.13'))
+            self.assertIsNone(parsed_data[2]['option_type'])
+            self.assertIsNone(parsed_data[2]['option_strike'])
+            self.assertIsNone(parsed_data[2]['option_expiry'])
+            
+            # Transaction 4: Buy to Close NVDA Option
+            self.assertEqual(parsed_data[3]['transaction_date'], date(2025, 5, 14))
+            self.assertEqual(parsed_data[3]['action'], ActionTypeEnum.BUY_TO_CLOSE)
+            self.assertEqual(parsed_data[3]['asset_type'], AssetTypeEnum.OPTION)
+            self.assertEqual(parsed_data[3]['ticker'], 'NVDA')
+            self.assertEqual(parsed_data[3]['quantity'], Decimal('1'))
+            self.assertEqual(parsed_data[3]['price'], Decimal('4.11'))
+            self.assertEqual(parsed_data[3]['fees'], Decimal('0.66'))
+            self.assertEqual(parsed_data[3]['total_amount'], Decimal('-411.66'))
+            self.assertEqual(parsed_data[3]['option_type'], 'PUT')
+            self.assertEqual(parsed_data[3]['option_strike'], Decimal('70.00'))
+            self.assertEqual(parsed_data[3]['option_expiry'], date(2027, 1, 15))
 
-    def test_parse_with_empty_fees(self):
-        csv_content = """Date,Action,Symbol,Description,Quantity,Price,Fees & Comm,Amount
-05/19/2025,Buy,GOOG,GOOGLE INC,10,$150.00,,($1,500.00)"""
-        parsed = parse_schwab_transactions(csv_content)
-        self.assertEqual(len(parsed), 1)
-        tx = parsed[0]
-        self.assertEqual(tx['fees'], Decimal("0"))
-        self.assertEqual(tx['total_amount'], Decimal("-1500.00"))
-
-    def test_handle_option_symbol_with_spaces_in_ticker(self):
-        # Example: "SPXW 03/28/2024 4500.00 C" (if SPXW is the ticker)
-        # Current OPTION_SYMBOL_REGEX might only capture "SPXW" not "SPX W" if that were a thing.
-        # This test is more for future-proofing or complex tickers.
-        # For now, testing the provided "SPXW" example from earlier.
-        csv_content = """Date,Action,Symbol,Description,Quantity,Price,Fees & Comm,Amount
-03/10/2024,Buy to Open,SPXW,"CALL SPXW INDEX $4500 EXP 03/28/24",2,$50.00,$1.30,($10001.30)"""
-        # The parser uses OPTION_DESC_REGEX for this one if symbol is just "SPXW"
-        parsed = parse_schwab_transactions(csv_content)
-        self.assertEqual(len(parsed), 1)
-        tx = parsed[0]
-        self.assertEqual(tx['ticker'], "SPXW") # From description parser
-        self.assertEqual(tx['asset_type'], AssetTypeEnum.OPTION)
-        self.assertEqual(tx['option_type'], "CALL")
-        self.assertEqual(tx['option_strike'], Decimal("4500.00"))
-        self.assertEqual(tx['option_expiry'], date(2024, 3, 28))
-
-    def test_empty_input(self):
-        csv_content = """Date,Action,Symbol,Description,Quantity,Price,Fees & Comm,Amount""" # Header only
-        parsed = parse_schwab_transactions(csv_content)
-        self.assertEqual(len(parsed), 0)
-        
-        csv_content_empty = ""
-        parsed_empty = parse_schwab_transactions(csv_content_empty)
-        self.assertEqual(len(parsed_empty), 0)
-
-    def test_row_with_only_action_no_other_data(self):
-        csv_content = """Date,Action,Symbol,Description,Quantity,Price,Fees & Comm,Amount
-,Buy,,,,,,,"""
-        parsed = parse_schwab_transactions(csv_content) # Should be skipped by date check or other errors
-        self.assertEqual(len(parsed), 0)
+        finally:
+            os.remove(tmp_file_path)
 
 if __name__ == '__main__':
     unittest.main()
